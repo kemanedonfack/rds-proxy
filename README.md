@@ -248,6 +248,55 @@ In this block, we use the `terraform-aws-modules/secrets-manager/aws` module to 
 
 By integrating AWS RDS Proxy and AWS Secrets Manager using Terraform, we can provision a centralized database access layer that enhances the reliability, performance, and manageability of our applications that rely on Amazon RDS instances. Terraform simplifies the deployment and management of this infrastructure across different environments.
 
+Voici la dernière partie de l'article où nous nous connectons à AWS CloudShell et testons une connexion à la base de données via l'endpoint RDS Proxy :
+
+### 6. Testing the RDS Proxy Connection
+
+Après avoir provisionné l'infrastructure avec Terraform, notamment RDS Proxy et l'instance de base de données RDS, nous pouvons tester la connexion à la base de données via RDS Proxy.
+
+#### Lancer AWS CloudShell
+
+AWS CloudShell est un environnement de ligne de commande pré-configuré basé sur Amazon Linux 2 qui s'exécute dans votre navigateur. Il vous permet d'accéder facilement aux services AWS sans avoir à installer et configurer des outils sur votre machine locale.
+
+1. Connectez-vous à la console AWS et accédez au service CloudShell en choisissant le bouton CloudShell dans la barre de navigation supérieure.
+
+2. Une fois CloudShell lancé, vous disposerez d'un terminal prêt à l'emploi avec les outils AWS CLI préinstallés.
+
+#### Tester la connexion à la base de données
+
+1. Dans le terminal CloudShell, exécutez la commande suivante pour récupérer l'endpoint de RDS Proxy :
+
+```
+rds_proxy_endpoint=$(aws rds describe-db-proxies --db-proxy-name "rds-proxy" --query 'DBProxies[0].Endpoint' --output text)
+echo $rds_proxy_endpoint
+```
+
+Cette commande récupère l'endpoint de RDS Proxy à partir du service AWS RDS.
+
+2. Ensuite, nous allons nous connecter à la base de données MySQL en utilisant l'outil `mysql` de la ligne de commande. Exécutez la commande suivante en remplaçant `<secret-arn>` par l'ARN du secret AWS Secrets Manager contenant les identifiants de base de données :
+
+```
+aws secretsmanager get-secret-value --secret-id <secret-arn> --query SecretString --output text | mysql -h $rds_proxy_endpoint -u admin -p
+```
+
+Cette commande récupère les identifiants de base de données à partir d'AWS Secrets Manager, puis les utilise pour se connecter à la base de données MySQL via l'endpoint RDS Proxy.
+
+3. Vous serez invité à entrer le mot de passe de la base de données. Saisissez le mot de passe que vous avez spécifié dans le secret AWS Secrets Manager.
+
+4. Une fois connecté, vous pouvez exécuter des requêtes SQL comme d'habitude. Par exemple, pour afficher les bases de données disponibles, exécutez :
+
+```sql
+SHOW DATABASES;
+```
+
+Vous devriez voir la sortie attendue, confirmant que vous êtes connecté à la base de données MySQL via RDS Proxy.
+
+En testant la connexion depuis AWS CloudShell, vous avez vérifié que RDS Proxy fonctionne correctement en tant que point d'entrée centralisé pour les connexions à votre instance de base de données RDS. Cette approche vous permet de gérer facilement les connexions, d'améliorer la disponibilité avec un basculement automatique, et d'optimiser les performances grâce à la mise en pool des connexions et aux connexions persistantes.
+
+
+# Conclusion
+
+In conclusion, leveraging RDS Proxy for centralized database access with Terraform offers a powerful solution for simplifying database management and enhancing performance on AWS. By consolidating and optimizing database connections, RDS Proxy streamlines access to RDS instances, improving scalability, reliability, and security for your applic
 
 
 
