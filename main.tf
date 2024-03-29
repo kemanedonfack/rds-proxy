@@ -26,54 +26,47 @@ module "db_security_group" {
 }
 
 resource "aws_db_subnet_group" "database_subnet" {
-  name       = "db-group-demo"
-  subnet_ids = [data.aws_subnet.first_subnet.id, data.aws_subnet.second_subnet.id] #private subnets ids
+  name       = "mydb-subnet-group"
+  subnet_ids = [data.aws_subnet.first_subnet.id, data.aws_subnet.second_subnet.id]
 }
 
 module "db" {
   source = "terraform-aws-modules/rds/aws"
 
-  identifier           = "mydb"
+  identifier           = "mydb-identifier"
   engine               = "mysql"
   engine_version       = "8.0"
-  family               = "mysql8.0" # DB parameter group
-  major_engine_version = "8.0"      # DB option group
+  family               = "mysql8.0"
+  major_engine_version = "8.0"
   instance_class       = "db.t3.micro"
 
-  allocated_storage     = 20
-  max_allocated_storage = 100
+  allocated_storage           = 20
+  max_allocated_storage       = 100
+  manage_master_user_password = false
 
-  db_name  = "aws"
-  username = "admin"
-  password = "DB-Pass01"
+  db_name  = var.db_name
+  username = var.db_username
+  password = var.db_password
   port     = 3306
 
   multi_az               = false
   db_subnet_group_name   = aws_db_subnet_group.database_subnet.name
   vpc_security_group_ids = [module.db_security_group.security_group_id]
 
-  enabled_cloudwatch_logs_exports = ["general"]
-  create_cloudwatch_log_group     = true
-
   skip_final_snapshot = true
   deletion_protection = false
-
-  performance_insights_enabled          = false
-  performance_insights_retention_period = 7
-  create_monitoring_role                = true
-  monitoring_interval                   = 60
 }
 
 module "rds_proxy" {
   source = "terraform-aws-modules/rds-proxy/aws"
 
-  name                   = "rds-proxy"
+  name                   = "my-rds-proxy"
   iam_role_name          = "rds-proxy-role"
   vpc_subnet_ids         = [data.aws_subnet.first_subnet.id, data.aws_subnet.second_subnet.id]
   vpc_security_group_ids = [module.db_security_group.security_group_id]
 
   auth = {
-    "admin" = {
+    "${var.db_name}" = {
       description = "RDS MySQL superuser password"
       secret_arn  = module.secrets_manager.secret_arn
     }
@@ -89,7 +82,7 @@ module "rds_proxy" {
 
   tags = {
     Terraform   = "true"
-    Environment = "dev"
+    Environment = "Test"
   }
 }
 
@@ -97,8 +90,8 @@ module "secrets_manager" {
   source = "terraform-aws-modules/secrets-manager/aws"
 
   # Secret
-  name_prefix             = "example"
-  description             = "Example Secrets Manager secret"
+  name_prefix             = "mydb-secret"
+  description             = "MySQL Secrets"
   recovery_window_in_days = 30
 
   # Policy
@@ -117,12 +110,8 @@ module "secrets_manager" {
   }
 
   secret_string = jsonencode({
-    username = "admin"
-    password = "DB-Pass01"
+    username = "${var.db_username}"
+    password = "${var.db_password}"
   })
 
-  tags = {
-    Environment = "Development"
-    Project     = "Example"
-  }
 }
