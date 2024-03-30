@@ -243,48 +243,59 @@ module "secrets_manager" {
 
 In this block, we use the `terraform-aws-modules/secrets-manager/aws` module to create an AWS Secrets Manager secret that stores the database credentials required for RDS Proxy to authenticate with the RDS instance. 
 
+## Terraform Execution Commands
+Here are the commands to initialize Terraform, review the execution plan, and apply the changes:
 
-### 6. Testing the RDS Proxy Connection
-
-Après avoir provisionné l'infrastructure avec Terraform, notamment RDS Proxy et l'instance de base de données RDS, nous pouvons tester la connexion à la base de données via RDS Proxy.
-
-#### Lancer AWS CloudShell
-
-AWS CloudShell est un environnement de ligne de commande pré-configuré basé sur Amazon Linux 2 qui s'exécute dans votre navigateur. Il vous permet d'accéder facilement aux services AWS sans avoir à installer et configurer des outils sur votre machine locale.
-
-1. Connectez-vous à la console AWS et accédez au service CloudShell en choisissant le bouton CloudShell dans la barre de navigation supérieure.
-
-2. Une fois CloudShell lancé, vous disposerez d'un terminal prêt à l'emploi avec les outils AWS CLI préinstallés.
-
-#### Tester la connexion à la base de données
-
-1. Dans le terminal CloudShell, exécutez la commande suivante pour récupérer l'endpoint de RDS Proxy :
-
-```
-mysql -h my-rds-proxy.proxy-cnglh3wgxitt.eu-north-1.rds.amazonaws.com -u admin -pDB-Pass01
+```bash
+terraform init
+terraform plan
+terraform apply -auto-approve
 ```
 
-Cette commande récupère l'endpoint de RDS Proxy à partir du service AWS RDS.
+Below are screenshots of the AWS Management Console showing the created infrastructure components:
 
-2. Ensuite, nous allons nous connecter à la base de données MySQL en utilisant l'outil `mysql` de la ligne de commande. Exécutez la commande suivante en remplaçant `<secret-arn>` par l'ARN du secret AWS Secrets Manager contenant les identifiants de base de données :
+![database-connection](./images/rds-database.png)
+![database-connection](./images/aws-secret.png)
+![database-connection](./images/rds-proxy.png)
+![database-connection](./images/rds-proxy-endpoints.png)
 
+
+## Testing the RDS Proxy Connection
+
+Now that we've provisioned RDS Proxy and configured our infrastructure using Terraform, it's time to test the connectivity to the database. We'll set up an Amazon EC2 instance and install MySQL to simulate an application server. Then, we'll verify that the EC2 instance can connect to the RDS database through the RDS Proxy.
+
+### Setting Up an EC2 Instance
+
+First, launch an Amazon EC2 instance in the same VPC where your RDS Proxy and RDS database are deployed. You can use the AWS Management Console or the AWS CLI to create the instance. Make sure to choose the appropriate security group that allows outbound traffic on port 3306 (MySQL default port) to reach the RDS Proxy.
+
+### Installing MySQL Client
+
+Once the EC2 instance is running, SSH into the instance and install the MySQL client. You can install it using the package manager available on your EC2 instance's operating system. For example, on a Linux-based system, you can use the following command:
+
+```bash
+sudo apt update
+sudo apt install mysql-server
 ```
-aws secretsmanager get-secret-value --secret-id <secret-arn> --query SecretString --output text | mysql -h $rds_proxy_endpoint -u admin -p
+
+### Testing Database Connectivity
+
+After installing the MySQL client, you can test the connectivity to the RDS database via the RDS Proxy. Replace `rds-proxy-endpoint` with the actual endpoint of your RDS Proxy and `database-user` with the database username:
+
+```bash
+mysql -h rds-proxy-endpoint -u database-user -p
 ```
 
-Cette commande récupère les identifiants de base de données à partir d'AWS Secrets Manager, puis les utilise pour se connecter à la base de données MySQL via l'endpoint RDS Proxy.
+You'll be prompted to enter the database password. After providing the correct password, you should successfully connect to the database through the RDS Proxy.
 
-3. Vous serez invité à entrer le mot de passe de la base de données. Saisissez le mot de passe que vous avez spécifié dans le secret AWS Secrets Manager.
+![database-connection](./images/db-connection.png)
 
-4. Une fois connecté, vous pouvez exécuter des requêtes SQL comme d'habitude. Par exemple, pour afficher les bases de données disponibles, exécutez :
+### Verifying Proxy Connections
 
-```sql
+To verify that connections are being routed through the RDS Proxy, you can check the RDS Proxy metrics in the AWS Management Console. Look for metrics related to connections and throughput to ensure that traffic is flowing through the proxy as expected.
+```bash
 SHOW DATABASES;
 ```
-
-Vous devriez voir la sortie attendue, confirmant que vous êtes connecté à la base de données MySQL via RDS Proxy.
-
-En testant la connexion depuis AWS CloudShell, vous avez vérifié que RDS Proxy fonctionne correctement en tant que point d'entrée centralisé pour les connexions à votre instance de base de données RDS. Cette approche vous permet de gérer facilement les connexions, d'améliorer la disponibilité avec un basculement automatique, et d'optimiser les performances grâce à la mise en pool des connexions et aux connexions persistantes.
+![show-databases](./images/show-databases.png)
 
 
 # Conclusion
