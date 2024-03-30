@@ -2,23 +2,23 @@
 
 ## Introduction
 Amazon RDS (Relational Database Service) is an AWS-managed database service that facilitates deploying database instances in the cloud. However, managing client connections can be complex, especially to ensure high availability. This is why AWS offers RDS Proxy, a fully managed proxy service that centralizes connections to RDS instances.
-In this article, we will see how to provision and configure RDS Proxy using Terraform. We will associate RDS Proxy with RDS instances and learn how to securely connect to it from applications. Using Terraform will greatly simplify deployment across different environments.
+In this article, we will see how to provision and configure RDS Proxy using Terraform. We will associate RDS Proxy with RDS instance and learn how to securely connect to it from applications. Using Terraform will greatly simplify deployment across different environments.
 
+![Leveraging-RDS-Proxy-for-Centralized-Database-Access-with-Terraform](./images/Leveraging%20RDS%20Proxy%20for%20Centralized%20Database%20Access%20with%20Terraform.png)
 
 ## Prerequisites
 
 Before we dive into provisioning and configuring AWS RDS Proxy with Terraform, you'll need to have the following prerequisites in place:
 
-1. **AWS Account**: An AWS account to access and use AWS services.
-2. **AWS CLI**: The AWS Command Line Interface installed and configured.  
-3. **Terraform**: Terraform installed and accessible from your system's PATH.
-4. **Terraform Modules Knowledge**: Familiarity with Terraform modules is essential. If you're new to Terraform modules, I recommend reading my article [Demystifying Terraform Modules](https://blog.kemanedonfack.com/demystifying-terraform-modules/) to get up to speed.
+1. **AWS Account**: An AWS account to access and use AWS services. 
+2. **Terraform**: Terraform installed and accessible from your system's PATH.
+3. **Terraform Modules Knowledge**: Familiarity with Terraform modules is essential. If you're new to Terraform modules, I recommend reading my article [Demystifying Terraform Modules](https://blog.kemanedonfack.com/demystifying-terraform-modules/) to get up to speed.
 
 ## Understanding RDS Proxy
 
 ### What is RDS Proxy?
 
-AWS RDS Proxy is a fully managed, highly available database proxy service that sits between your applications and Amazon Relational Database Service (RDS) instances. It serves as a centralized access point for database connections, acting as an intermediary between your applications and the underlying RDS instances.
+AWS RDS Proxy is a fully managed, highly available database proxy service that sits between your applications and Amazon Relational Database Service (RDS) instances. It serves as a centralized access point for database connection, acting as an intermediary between your application and the underlying RDS instance.
 
 ### How RDS Proxy Works
 
@@ -73,7 +73,6 @@ data "aws_vpc" "infrastructure_vpc" {
 data "aws_subnet" "first_subnet" {
   id = "subnet-xxxxxxx"
 }
-
 data "aws_subnet" "second_subnet" {
   id = "subnet-xxxxxxxx"
 }
@@ -91,27 +90,26 @@ In this section, we'll create the necessary resources for our RDS database insta
 
 ```hcl
 module "db_security_group" {
-  source  = "terraform-aws-modules/security-group/aws"
-  name    = "MySQL Database security group"
-  description = "Security group for MySQL" 
-  vpc_id  = data.aws_vpc.infrastructure_vpc.id
+  source = "terraform-aws-modules/security-group/aws"
+  name        = "MySQL Database security group"
+  description = "Security group for MySQL"
+  vpc_id      = data.aws_vpc.infrastructure_vpc.id
 
   ingress_with_cidr_blocks = [
     {
       from_port   = 3306
       to_port     = 3306
       protocol    = "tcp"
-      description = ""
+      description = " "
       cidr_blocks = "0.0.0.0/0"
     }
   ]
-
   egress_with_cidr_blocks = [
     {
       from_port   = 0
       to_port     = 0
-      protocol    = "-1" 
-      description = ""
+      protocol    = -1
+      description = " "
       cidr_blocks = "0.0.0.0/0"
     }
   ]
@@ -126,7 +124,7 @@ While opening port 3306 to all IP addresses is convenient for this example, in a
 
 ```hcl
 resource "aws_db_subnet_group" "database_subnet" {
-  name       = "db-group-demo"
+  name       = "mydb-subnet-group"
   subnet_ids = [data.aws_subnet.first_subnet.id, data.aws_subnet.second_subnet.id]
 }
 ```
@@ -141,39 +139,32 @@ In the following section, we'll define the RDS database instance using the `terr
 module "db" {
   source = "terraform-aws-modules/rds/aws"
 
-  identifier           = "mydb"
+  identifier           = "mydb-identifier"
   engine               = "mysql"
   engine_version       = "8.0"
-  family               = "mysql8.0" # DB parameter group
-  major_engine_version = "8.0"      # DB option group
+  family               = "mysql8.0"
+  major_engine_version = "8.0"
   instance_class       = "db.t3.micro"
 
-  allocated_storage     = 20
-  max_allocated_storage = 100
+  allocated_storage           = 20
+  max_allocated_storage       = 100
+  manage_master_user_password = false
 
-  db_name  = "aws"
-  username = "admin"
-  password = "DB-Pass01"
+  db_name  = var.db_name
+  username = var.db_username
+  password = var.db_password
   port     = 3306
 
   multi_az               = false
   db_subnet_group_name   = aws_db_subnet_group.database_subnet.name
   vpc_security_group_ids = [module.db_security_group.security_group_id]
 
-  enabled_cloudwatch_logs_exports = ["general"]
-  create_cloudwatch_log_group     = true
-
   skip_final_snapshot = true
   deletion_protection = false
-
-  performance_insights_enabled          = false
-  performance_insights_retention_period = 7
-  create_monitoring_role                = true
-  monitoring_interval                   = 60
 }
 ```
 
-## 5. Integrating RDS Proxy with Terraform
+## Integrating RDS Proxy with Terraform
 
 Now that we have set up the underlying infrastructure components using Terraform, we can proceed to integrate AWS RDS Proxy into our configuration.
 
@@ -181,28 +172,31 @@ Now that we have set up the underlying infrastructure components using Terraform
 
 ```hcl
 module "rds_proxy" {
-  source  = "terraform-aws-modules/rds-proxy/aws"
-  name    = "rds-proxy"
-  iam_role_name = "rds-proxy-role"
-  vpc_subnet_ids = [data.aws_subnet.first_subnet.id, data.aws_subnet.second_subnet.id]
+  source = "terraform-aws-modules/rds-proxy/aws"
+
+  name                   = "my-rds-proxy"
+  iam_role_name          = "rds-proxy-role"
+  vpc_subnet_ids         = [data.aws_subnet.first_subnet.id, data.aws_subnet.second_subnet.id]
   vpc_security_group_ids = [module.db_security_group.security_group_id]
 
   auth = {
-    "admin" = {
+    "${var.db_name}" = {
       description = "RDS MySQL superuser password"
       secret_arn  = module.secrets_manager.secret_arn
     }
   }
 
+  # Target MySQL Instance
   engine_family = "MYSQL"
   debug_logging = true
 
-  target_db_instance = true
+  # Target RDS instance
+  target_db_instance     = true
   db_instance_identifier = module.db.db_instance_identifier
 
   tags = {
     Terraform   = "true"
-    Environment = "dev"
+    Environment = "Test"
   }
 }
 ```
@@ -213,38 +207,40 @@ In this block, we define the RDS Proxy resource using the `terraform-aws-modules
 
 ```hcl
 module "secrets_manager" {
-  source  = "terraform-aws-modules/secrets-manager/aws"
-  name_prefix             = "example"
-  description             = "Example Secrets Manager secret"
-  recovery_window_in_days = 30
-  create_policy           = true
-  block_public_policy     = true
+  source = "terraform-aws-modules/secrets-manager/aws"
 
+  # Secret
+  name_prefix             = "mydb-secret"
+  description             = "MySQL Secrets"
+  recovery_window_in_days = 30
+
+  # Policy
+  create_policy       = true
+  block_public_policy = true
   policy_statements = {
     read = {
-      sid       = "AllowAccountRead"
-      principals = [{ type = "AWS", identifiers = ["arn:aws:iam::625243961866:root"] }]
+      sid = "AllowAccountRead"
+      principals = [{
+        type        = "AWS"
+        identifiers = ["arn:aws:iam::625243961866:root"]
+      }]
       actions   = ["secretsmanager:GetSecretValue"]
       resources = ["*"]
     }
   }
 
   secret_string = jsonencode({
-    username = "admin"
-    password = "DB-Pass01"
+    username = "${var.db_username}"
+    password = "${var.db_password}"
   })
 
-  tags = {
-    Environment = "Development"
-    Project     = "Example"
-  }
 }
 ```
 
 In this block, we use the `terraform-aws-modules/secrets-manager/aws` module to create an AWS Secrets Manager secret that stores the database credentials required for RDS Proxy to authenticate with the RDS instance. 
 
 ## Terraform Execution Commands
-Here are the commands to initialize Terraform, review the execution plan, and apply the changes:
+Here are the commands to initialize Terraform, review the execution plan, and apply the changes
 
 ```bash
 terraform init
@@ -252,12 +248,12 @@ terraform plan
 terraform apply -auto-approve
 ```
 
-Below are screenshots of the AWS Management Console showing the created infrastructure components:
+Below are screenshots of the AWS Management Console showing the created infrastructure components
 
 ![database-connection](./images/rds-database.png)
-![database-connection](./images/aws-secret.png)
-![database-connection](./images/rds-proxy.png)
-![database-connection](./images/rds-proxy-endpoints.png)
+![aws-secret](./images/aws-secret.png)
+![rds-proxy](./images/rds-proxy.png)
+![rds-proxy-endpoints](./images/rds-proxy-endpoints.png)
 
 
 ## Testing the RDS Proxy Connection
@@ -270,7 +266,7 @@ First, launch an Amazon EC2 instance in the same VPC where your RDS Proxy and RD
 
 ### Installing MySQL Client
 
-Once the EC2 instance is running, SSH into the instance and install the MySQL client. You can install it using the package manager available on your EC2 instance's operating system. For example, on a Linux-based system, you can use the following command:
+Once the EC2 instance is running, SSH into the instance and install the MySQL client. You can install it using the package manager available on your EC2 instance's operating system.
 
 ```bash
 sudo apt update
@@ -289,19 +285,15 @@ You'll be prompted to enter the database password. After providing the correct p
 
 ![database-connection](./images/db-connection.png)
 
-### Verifying Proxy Connections
-
-To verify that connections are being routed through the RDS Proxy, you can check the RDS Proxy metrics in the AWS Management Console. Look for metrics related to connections and throughput to ensure that traffic is flowing through the proxy as expected.
 ```bash
 SHOW DATABASES;
 ```
 ![show-databases](./images/show-databases.png)
 
+## Source Code on GitHub
+
+To access the complete source code used in this article, you can check out the following GitHub repository: [link_to_github_repository](https://github.com/your_username/your_project).
 
 # Conclusion
 
 In conclusion, leveraging RDS Proxy for centralized database access with Terraform offers a powerful solution for simplifying database management and enhancing performance on AWS. By consolidating and optimizing database connections, RDS Proxy streamlines access to RDS instances, improving scalability, reliability, and security for your applic
-
-
-
-
