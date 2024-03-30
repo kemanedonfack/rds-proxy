@@ -102,7 +102,7 @@ module "secrets_manager" {
       sid = "AllowAccountRead"
       principals = [{
         type        = "AWS"
-        identifiers = ["arn:aws:iam::625243961866:root"]
+        identifiers = ["arn:aws:iam::xxxxxxx:root"]
       }]
       actions   = ["secretsmanager:GetSecretValue"]
       resources = ["*"]
